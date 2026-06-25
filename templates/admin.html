@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Administración</p>
+    <h1>Control del monitor</h1>
+    <p>Productos, usuarios, alertas, correo y frecuencia de revisión.</p>
+  </div>
+  <form method="post">
+    <input type="hidden" name="action" value="run_now">
+    <button type="submit">Revisar ahora</button>
+  </form>
+</section>
+
+<section class="admin-grid">
+  <article class="panel">
+    <h2>Añadir producto</h2>
+    <form method="post" class="form-stack">
+      <input type="hidden" name="action" value="add_product">
+      <label>URL de Stradivarius
+        <input name="url" placeholder="https://www.stradivarius.com/..." required>
+      </label>
+      <button type="submit">Guardar producto</button>
+    </form>
+  </article>
+
+  <article class="panel">
+    <h2>Crear usuario</h2>
+    <form method="post" action="{{ url_for('create_user') }}" class="form-stack">
+      <label>Usuario
+        <input name="username" required>
+      </label>
+      <label>Email
+        <input name="email" type="email">
+      </label>
+      <label>Contraseña
+        <input name="password" type="password" required>
+      </label>
+      <label>Rol
+        <select name="role">
+          <option value="user">Usuario</option>
+          <option value="admin">Admin</option>
+        </select>
+      </label>
+      <button type="submit">Crear</button>
+    </form>
+  </article>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <p class="eyebrow">Alertas</p>
+      <h2>Configuración</h2>
+    </div>
+  </div>
+  <form method="post" class="config-grid">
+    <input type="hidden" name="action" value="config">
+    <label>Intervalo, minutos
+      <input name="check_interval_minutes" type="number" min="1" value="{{ config.get('check_interval_minutes', '5') }}">
+    </label>
+    <label>Telegram bot token
+      <input name="telegram_bot_token" type="password" value="{{ config.get('telegram_bot_token', '') }}">
+    </label>
+    <label>Telegram chat ID
+      <input name="telegram_chat_id" value="{{ config.get('telegram_chat_id', '') }}">
+    </label>
+    <label class="check">
+      <input name="email_enabled" type="checkbox" {% if config.get('email_enabled') == 'true' %}checked{% endif %}>
+      Activar email
+    </label>
+    <label>SMTP host
+      <input name="smtp_host" value="{{ config.get('smtp_host', 'smtp.gmail.com') }}">
+    </label>
+    <label>SMTP port
+      <input name="smtp_port" type="number" value="{{ config.get('smtp_port', '587') }}">
+    </label>
+    <label>SMTP usuario
+      <input name="smtp_username" value="{{ config.get('smtp_username', '') }}">
+    </label>
+    <label>SMTP contraseña
+      <input name="smtp_password" type="password" placeholder="Dejar en blanco para conservarla">
+    </label>
+    <label>Email origen
+      <input name="email_from" value="{{ config.get('email_from', '') }}" placeholder="Por defecto usa SMTP usuario">
+    </label>
+    <label>Email destino por defecto
+      <input name="email_to" value="{{ config.get('email_to', '') }}">
+    </label>
+    <button type="submit">Guardar configuración</button>
+  </form>
+
+  <form method="post" class="inline-form test-email-form">
+    <input type="hidden" name="action" value="test_email">
+    <input name="test_email_to" type="email" placeholder="Email para prueba">
+    <button type="submit" class="secondary">Probar email</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Catálogo global</h2>
+  <table>
+    <thead><tr><th>Producto</th><th>Código</th><th>Color</th><th>Lectura</th><th>Precio</th><th>Stock</th><th>Última revisión</th><th>Usuarios</th><th>URL</th><th></th></tr></thead>
+    <tbody>
+      {% for product in products %}
+        <tr>
+          <td>{{ product.name }}</td>
+          <td>{{ product.url|product_code }}</td>
+          <td>{{ product.color or "-" }}</td>
+          <td>{{ product.scrape_status|scrape_status }}</td>
+          <td>{{ product.current_price|money }}</td>
+          <td>{{ product|availability_label }}</td>
+          <td>{{ product.last_checked_at|date_es }}</td>
+          <td>{{ product.followers }}</td>
+          <td><a href="{{ product.url }}" target="_blank" rel="noreferrer">Abrir</a></td>
+          <td>
+            <form method="post">
+              <input type="hidden" name="action" value="delete_product">
+              <input type="hidden" name="product_id" value="{{ product.id }}">
+              <button class="danger" type="submit">Eliminar</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="10">No hay productos.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="panel">
+  <h2>Usuarios registrados</h2>
+  <table>
+    <thead><tr><th>Usuario</th><th>Rol</th><th>Email</th><th>Alertas</th><th>Productos</th><th>Alta</th></tr></thead>
+    <tbody>
+      {% for user in users %}
+        <tr>
+          <td>{{ user.username }}</td>
+          <td>{{ user.role }}</td>
+          <td>{{ user.email or "Sin email" }}</td>
+          <td>{{ "Sí" if user.notifications_enabled else "No" }}</td>
+          <td>{{ user.products_count }}</td>
+          <td>{{ user.created_at|date_es }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6">No hay usuarios.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="panel">
+  <h2>Eventos</h2>
+  <ul class="events">
+    {% for event in events %}
+      <li><span class="{{ event.level }}">{{ event.level }}</span>{{ event.message }} <small>{{ event.created_at|date_es }}</small></li>
+    {% else %}
+      <li>Sin eventos.</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

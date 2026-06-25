@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="login-panel">
+  <p class="eyebrow">Nuevo usuario</p>
+  <h1>Crear cuenta</h1>
+  <p>Añade productos, revisa tallas y activa alertas por email desde tu perfil.</p>
+  <form method="post" class="form-stack">
+    <label>Usuario
+      <input name="username" autocomplete="username" required minlength="3">
+    </label>
+    <label>Email
+      <input name="email" type="email" autocomplete="email" required>
+    </label>
+    <label>Contraseña
+      <input type="password" name="password" autocomplete="new-password" required minlength="8">
+    </label>
+    <label>Confirmar contraseña
+      <input type="password" name="confirm" autocomplete="new-password" required minlength="8">
+    </label>
+    <button type="submit">Crear cuenta</button>
+  </form>
+  <p class="auth-link">¿Ya tienes cuenta? <a href="{{ url_for('login') }}">Entrar</a></p>
+</section>
+{% endblock %}

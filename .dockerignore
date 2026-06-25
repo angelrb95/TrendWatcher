@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.env
+data/
+*.db
+app.log
+.venv/
+venv/
+.git/
+test-data*/
+backup-before-*/
+*.tar.gz

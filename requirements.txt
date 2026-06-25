@@ -1,0 +1,7 @@
+playwright>=1.44.0
+playwright-stealth>=2.0.0
+requests>=2.31.0
+APScheduler>=3.10.4
+Flask>=3.0.0
+gunicorn>=22.0.0
+tzdata>=2026.2

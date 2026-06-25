@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Cuenta</p>
+    <h1>Perfil</h1>
+    <p>Gestiona tu email de alertas y cambia tu contraseña cuando lo necesites.</p>
+  </div>
+</section>
+
+<section class="panel narrow">
+  <form method="post" class="form-stack">
+    <label>Usuario
+      <input value="{{ user.username }}" disabled>
+    </label>
+    <label>Email para alertas
+      <input name="email" type="email" value="{{ user.email or '' }}" required>
+    </label>
+    <label class="check">
+      <input name="notifications_enabled" type="checkbox" {% if user.notifications_enabled %}checked{% endif %}>
+      Recibir alertas por email
+    </label>
+    <label>Nueva contraseña
+      <input name="new_password" type="password" placeholder="Dejar vacío para no cambiar">
+    </label>
+    <button type="submit">Guardar perfil</button>
+  </form>
+</section>
+{% endblock %}

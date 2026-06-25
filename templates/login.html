@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="login-panel">
+  <p class="eyebrow">Acceso privado</p>
+  <h1>Entrar</h1>
+  <p>Consulta tus productos vigilados y recibe avisos cuando cambie el stock o el precio.</p>
+  <form method="post" class="form-stack">
+    <label>Usuario
+      <input name="username" autocomplete="username" required>
+    </label>
+    <label>Contraseña
+      <input type="password" name="password" autocomplete="current-password" required>
+    </label>
+    <button type="submit">Entrar</button>
+  </form>
+  <div class="auth-links">
+    <a href="{{ url_for('forgot_password') }}">He olvidado la contraseña</a>
+    <a href="{{ url_for('register') }}">Registrarme</a>
+  </div>
+</section>
+{% endblock %}

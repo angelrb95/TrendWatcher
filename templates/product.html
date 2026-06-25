@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">{{ product.scrape_status|scrape_status }}</p>
+    <h1>{{ product.name }}</h1>
+    <p>Código: {{ product.url|product_code }} · Color: {{ product.color or "No detectado" }} · Última revisión: {{ product.last_checked_at|date_es }}</p>
+    <p><a href="{{ product.url }}" target="_blank" rel="noreferrer">{{ product.url }}</a></p>
+  </div>
+  <span class="badge {{ product|availability_class }}">{{ product|availability_label }}</span>
+</section>
+
+{% if product.scrape_status == 'blocked' %}
+<section class="warning-panel">
+  <h2>Lectura bloqueada</h2>
+  <p>{{ product.last_error }}</p>
+</section>
+{% endif %}
+
+{% set photos = product.image_urls_json|image_urls %}
+{% if photos %}
+<section class="product-gallery">
+  {% for photo in photos %}
+    <img src="{{ photo }}" alt="{{ product.name }}">
+  {% endfor %}
+</section>
+{% endif %}
+
+<section class="stats-row">
+  <article><strong>{{ product.current_price|money }}</strong><span>precio actual</span></article>
+  <article><strong>{{ product.reference or "No detectada" }}</strong><span>referencia</span></article>
+  <article><strong>{{ product|availability_label }}</strong><span>stock</span></article>
+  <article><strong>{{ product.last_checked_at|date_es }}</strong><span>última revisión</span></article>
+  <article><strong>{{ product.sizes_json|sizes }}</strong><span>tallas</span></article>
+  <article><strong>{{ product.measurements_json|measurements }}</strong><span>medidas</span></article>
+</section>
+
+<section class="panel">
+  <h2>Histórico</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Precio</th>
+        <th>Stock</th>
+        <th>Tallas</th>
+        <th>Fuente</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in history %}
+        <tr>
+          <td>{{ row.checked_at|date_es }}</td>
+          <td>{{ row.price|money }}</td>
+          <td>{{ row.in_stock|stock }}</td>
+          <td>{{ row.sizes_json|sizes }}</td>
+          <td>{{ row.source }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5">Sin histórico todavía.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
