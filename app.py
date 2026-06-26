@@ -336,7 +336,7 @@ def recent_events(limit: int = 50) -> list[sqlite3.Row]:
         ).fetchall()
 
 
-def ensure_product(url: str, name: str = "Producto Stradivarius") -> int:
+def ensure_product(url: str, name: str = "Producto vigilado") -> int:
     now = utc_now()
     clean_url = url.strip()
     with db() as conn:
@@ -372,6 +372,24 @@ def subscribe_user(user_id: int, product_id: int) -> None:
 def unsubscribe_user_product(user_id: int, product_id: int) -> None:
     with db() as conn:
         conn.execute("DELETE FROM user_products WHERE user_id = ? AND product_id = ?", (user_id, product_id))
+        conn.commit()
+
+
+def update_user_product_notifications(
+    user_id: int,
+    product_id: int,
+    notify_price_drop: bool,
+    notify_restock: bool,
+) -> None:
+    with db() as conn:
+        conn.execute(
+            """
+            UPDATE user_products
+            SET notify_price_drop = ?, notify_restock = ?
+            WHERE user_id = ? AND product_id = ?
+            """,
+            (int(notify_price_drop), int(notify_restock), user_id, product_id),
+        )
         conn.commit()
 
 
@@ -456,7 +474,7 @@ async def check_urls(settings: monitor.Settings, urls: list[str]) -> None:
                     monitor.save_to_db(settings.database_path, snapshot)
                     product_row = get_product_by_url(snapshot.url)
                     if snapshot.status == "blocked":
-                        add_event("warning", f"{snapshot.name}: bloqueado por Stradivarius. {snapshot.error}")
+                        add_event("warning", f"{snapshot.name}: lectura bloqueada por la tienda. {snapshot.error}")
                     else:
                         add_event(
                             "info",
@@ -491,7 +509,7 @@ def notify_product_users(
     for user in subscribed_users(product_id, alerts):
         target = user["email"]
         try:
-            send_email_to(settings, target, "Alerta Stradivarius", fallback_message)
+            send_email_to(settings, target, "Alerta TrendWatcher", fallback_message)
         except Exception as exc:
             add_event("error", f"No se pudo enviar email a {target}: {exc}")
 
@@ -611,7 +629,7 @@ def availability_class(product: Any) -> str:
 def scrape_status(value: Any) -> str:
     mapping = {
         "ok": "Datos actualizados",
-        "blocked": "Bloqueado por Stradivarius",
+        "blocked": "Bloqueado por la tienda",
         "pending": "Pendiente de revisar",
     }
     return mapping.get(str(value or "pending"), str(value))
@@ -814,6 +832,15 @@ def dashboard() -> Any:
         elif action == "remove_product":
             unsubscribe_user_product(user_id, int(request.form["product_id"]))
             flash("Producto eliminado de tu lista.", "success")
+        elif action == "update_notifications":
+            product_id = int(request.form["product_id"])
+            update_user_product_notifications(
+                user_id,
+                product_id,
+                request.form.get("notify_price_drop") == "on",
+                request.form.get("notify_restock") == "on",
+            )
+            flash("Alertas del producto actualizadas.", "success")
         return redirect(url_for("dashboard"))
     return render_template(
         "dashboard.html",
@@ -899,7 +926,7 @@ def admin() -> Any:
                 send_email_to(
                     settings,
                     target,
-                    "Prueba de alertas Stradivarius",
+                    "Prueba de alertas TrendWatcher",
                     "El envío de email está funcionando correctamente.",
                 )
                 add_event("success", f"Email de prueba enviado a {target}.")

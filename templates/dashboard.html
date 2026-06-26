@@ -3,8 +3,12 @@
 <section class="hero">
   <div>
     <p class="eyebrow">Panel de seguimiento</p>
-    <h1>Productos vigilados</h1>
-    <p>Stock, precio, tallas, color e imágenes actualizadas cada 5 minutos.</p>
+    <h1>TrendWatcher</h1>
+    <p>Vigila precio, stock e imágenes de tus productos favoritos en Stradivarius y Amazon.</p>
+  </div>
+  <div class="hero-pulse">
+    <strong>5 min</strong>
+    <span>escaneo automático</span>
   </div>
 </section>
 
@@ -26,22 +30,40 @@
   <article><strong>{{ products|selectattr('scrape_status', 'equalto', 'blocked')|list|length }}</strong><span>bloqueados</span></article>
 </section>
 
-<section class="product-list">
+{% if products %}
+<section class="product-tools">
+  <input data-filter-search placeholder="Buscar por nombre, tienda o código">
+  <div class="segmented" data-filter-store>
+    <button type="button" class="active" data-store="all">Todo</button>
+    <button type="button" data-store="Amazon">Amazon</button>
+    <button type="button" data-store="Stradivarius">Stradivarius</button>
+  </div>
+</section>
+{% endif %}
+
+<section class="product-list" data-product-list>
   {% for product in products %}
-      {% set photos = product.image_urls_json|image_urls %}
-    <article class="product-card {{ 'has-photos' if photos else '' }} status-{{ product.scrape_status or 'pending' }}">
+    {% set photos = product.image_urls_json|image_urls %}
+    {% set store = product.url|store_name %}
+    <article
+      class="product-card {{ 'has-photos' if photos else '' }} status-{{ product.scrape_status or 'pending' }}"
+      data-product-card
+      data-store="{{ store }}"
+      data-search="{{ product.name }} {{ store }} {{ product.reference }} {{ product.url|product_code }}"
+    >
       {% if photos %}
         <div class="product-photos">
           {% for photo in photos[:2] %}
-            <img src="{{ photo }}" alt="{{ product.name }}">
+            <img src="{{ photo }}" alt="{{ product.name }}" loading="lazy">
           {% endfor %}
         </div>
       {% endif %}
+
       <div class="product-main">
         <div class="product-title-row">
           <div>
-            <p class="eyebrow">{{ product.url|store_name }}{% if product.color %} · {{ product.color }}{% endif %}</p>
-            <h2>{{ product.name or "Producto Stradivarius" }}</h2>
+            <p class="eyebrow">{{ store }}{% if product.color %} - {{ product.color }}{% endif %}</p>
+            <h2>{{ product.name or "Producto vigilado" }}</h2>
           </div>
           <span class="badge {{ product|availability_class }}">{{ product|availability_label }}</span>
         </div>
@@ -57,19 +79,17 @@
           <div><span>Última revisión</span><strong>{{ product.last_checked_at|date_es }}</strong></div>
         </div>
 
-        <div class="sizes-wrap">
-          <span>Tallas</span>
-          {% set size_map = product.sizes_json|sizes_map %}
-          {% if size_map %}
+        {% set size_map = product.sizes_json|sizes_map %}
+        {% if size_map %}
+          <div class="sizes-wrap">
+            <span>Tallas</span>
             <div class="size-chips">
               {% for size, available in size_map.items() %}
                 <span class="size-chip {{ 'available' if available else 'missing' }}">{{ size }}</span>
               {% endfor %}
             </div>
-          {% else %}
-            <p>No detectadas todavía.</p>
-          {% endif %}
-        </div>
+          </div>
+        {% endif %}
 
         {% if product.measurements_json %}
           <div class="sizes-wrap">
@@ -77,6 +97,20 @@
             <p>{{ product.measurements_json|measurements }}</p>
           </div>
         {% endif %}
+
+        <form method="post" class="alert-controls">
+          <input type="hidden" name="action" value="update_notifications">
+          <input type="hidden" name="product_id" value="{{ product.id }}">
+          <label class="check">
+            <input name="notify_price_drop" type="checkbox" {% if product.notify_price_drop %}checked{% endif %}>
+            Bajada de precio
+          </label>
+          <label class="check">
+            <input name="notify_restock" type="checkbox" {% if product.notify_restock %}checked{% endif %}>
+            Reposición
+          </label>
+          <button class="secondary compact" type="submit">Guardar alertas</button>
+        </form>
       </div>
 
       <div class="product-actions">

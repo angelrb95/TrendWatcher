@@ -3,14 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Stradivarius Monitor</title>
+  <title>TrendWatcher</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <script defer src="{{ url_for('static', filename='app.js') }}"></script>
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="{{ url_for('dashboard') }}">
-      <span class="brand-mark">SM</span>
-      <span>Stradivarius Monitor</span>
+      <span class="brand-mark">TW</span>
+      <span>TrendWatcher</span>
     </a>
     <nav class="nav-links">
       {% if session.get("user_id") %}

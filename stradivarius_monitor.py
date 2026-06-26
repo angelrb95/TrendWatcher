@@ -570,7 +570,7 @@ def product_name_from_url(url: str) -> str:
     path = urlparse(url).path
     slug = path.rsplit("/", 1)[-1].split("-l", 1)[0]
     if not slug:
-        return "Producto Stradivarius"
+        return "Producto vigilado"
     return " ".join(part.capitalize() for part in slug.split("-") if part)
 
 
@@ -1140,7 +1140,7 @@ async def run_cycle(settings: Settings, urls: list[str]) -> None:
                     if alerts:
                         message = format_alert_message(snapshot, alerts)
                         send_telegram_alert(settings, message)
-                        send_email_alert(settings, "Alerta Stradivarius", message)
+                        send_email_alert(settings, "Alerta TrendWatcher", message)
 
                     await asyncio.sleep(random.uniform(4.0, 10.0))
                 except Exception:
