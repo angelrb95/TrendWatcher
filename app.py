@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import secrets
 import sqlite3
 import threading
@@ -109,6 +110,24 @@ def init_app_db() -> None:
             conn.execute("ALTER TABLE app_users ADD COLUMN email TEXT")
         if not column_exists(conn, "app_users", "notifications_enabled"):
             conn.execute("ALTER TABLE app_users ADD COLUMN notifications_enabled INTEGER NOT NULL DEFAULT 1")
+        conn.execute("UPDATE app_users SET email = lower(trim(email)) WHERE COALESCE(email, '') != ''")
+        duplicate_emails = conn.execute(
+            """
+            SELECT lower(email) AS email, COUNT(*) AS total
+            FROM app_users
+            WHERE COALESCE(email, '') != ''
+            GROUP BY lower(email)
+            HAVING COUNT(*) > 1
+            """
+        ).fetchall()
+        if not duplicate_emails:
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_app_users_email_unique
+                ON app_users(lower(email))
+                WHERE COALESCE(email, '') != ''
+                """
+            )
         if not column_exists(conn, "products", "scrape_status"):
             conn.execute("ALTER TABLE products ADD COLUMN scrape_status TEXT NOT NULL DEFAULT 'pending'")
         if not column_exists(conn, "products", "last_error"):
@@ -394,6 +413,27 @@ def get_user(user_id: int) -> sqlite3.Row | None:
         return conn.execute("SELECT * FROM app_users WHERE id = ?", (user_id,)).fetchone()
 
 
+def normalize_email(value: str | None) -> str:
+    return (value or "").strip().lower()
+
+
+def is_valid_email(value: str) -> bool:
+    return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value))
+
+
+def email_exists(email: str, exclude_user_id: int | None = None) -> bool:
+    normalized = normalize_email(email)
+    if not normalized:
+        return False
+    query = "SELECT 1 FROM app_users WHERE lower(COALESCE(email, '')) = ?"
+    params: list[Any] = [normalized]
+    if exclude_user_id is not None:
+        query += " AND id != ?"
+        params.append(exclude_user_id)
+    with db() as conn:
+        return conn.execute(query, params).fetchone() is not None
+
+
 def count_admin_users() -> int:
     with db() as conn:
         return int(conn.execute("SELECT COUNT(*) AS total FROM app_users WHERE role = 'admin'").fetchone()["total"])
@@ -408,10 +448,15 @@ def update_admin_user(
     password: str = "",
 ) -> tuple[bool, str]:
     current = get_user(user_id)
+    email = normalize_email(email)
     if not current:
         return False, "Usuario no encontrado."
     if not username or len(username) < 3:
         return False, "El usuario debe tener al menos 3 caracteres."
+    if email and not is_valid_email(email):
+        return False, "Introduce un email válido."
+    if email and email_exists(email, exclude_user_id=user_id):
+        return False, "Ese email ya está registrado."
     if role not in {"admin", "user"}:
         return False, "Rol no válido."
     if current["role"] == "admin" and role != "admin" and count_admin_users() <= 1:
@@ -945,13 +990,15 @@ def reset_password(token: str) -> Any:
 def register() -> Any:
     if request.method == "POST":
         username = request.form.get("username", "").strip()
-        email = request.form.get("email", "").strip()
+        email = normalize_email(request.form.get("email", ""))
         password = request.form.get("password", "")
         confirm = request.form.get("confirm", "")
         if len(username) < 3:
             flash("El usuario debe tener al menos 3 caracteres.", "error")
-        elif "@" not in email:
+        elif not is_valid_email(email):
             flash("Introduce un email válido.", "error")
+        elif email_exists(email):
+            flash("Ese email ya está registrado.", "error")
         elif len(password) < 8:
             flash("La contraseña debe tener al menos 8 caracteres.", "error")
         elif password != confirm:
@@ -1019,9 +1066,15 @@ def dashboard() -> Any:
 def profile() -> Any:
     user_id = int(session["user_id"])
     if request.method == "POST":
-        email = request.form.get("email", "").strip()
+        email = normalize_email(request.form.get("email", ""))
         notifications_enabled = 1 if request.form.get("notifications_enabled") == "on" else 0
         new_password = request.form.get("new_password", "")
+        if not is_valid_email(email):
+            flash("Introduce un email válido.", "error")
+            return redirect(url_for("profile"))
+        if email_exists(email, exclude_user_id=user_id):
+            flash("Ese email ya está registrado.", "error")
+            return redirect(url_for("profile"))
         with db() as conn:
             conn.execute(
                 "UPDATE app_users SET email = ?, notifications_enabled = ? WHERE id = ?",
@@ -1120,10 +1173,20 @@ def admin() -> Any:
 @login_required("admin")
 def create_user() -> Any:
     username = request.form.get("username", "").strip()
-    email = request.form.get("email", "").strip()
+    email = normalize_email(request.form.get("email", ""))
     password = request.form.get("password", "").strip()
     role = request.form.get("role", "user")
-    if username and password and role in {"admin", "user"}:
+    if not username or len(username) < 3:
+        flash("El usuario debe tener al menos 3 caracteres.", "error")
+    elif email and not is_valid_email(email):
+        flash("Introduce un email válido.", "error")
+    elif email and email_exists(email):
+        flash("Ese email ya está registrado.", "error")
+    elif not password or len(password) < 8:
+        flash("La contraseña debe tener al menos 8 caracteres.", "error")
+    elif role not in {"admin", "user"}:
+        flash("Rol no válido.", "error")
+    else:
         try:
             with db() as conn:
                 conn.execute(
