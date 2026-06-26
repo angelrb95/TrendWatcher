@@ -149,30 +149,59 @@
   </table>
 </section>
 
-<section class="panel table-panel">
+<section class="panel user-management">
   <div class="panel-head">
     <div>
       <p class="eyebrow">Usuarios</p>
-      <h2>Cuentas registradas</h2>
+      <h2>Gestión de cuentas</h2>
     </div>
   </div>
-  <table>
-    <thead><tr><th>Usuario</th><th>Rol</th><th>Email</th><th>Alertas</th><th>Productos</th><th>Alta</th></tr></thead>
-    <tbody>
-      {% for user in users %}
-        <tr>
-          <td><strong>{{ user.username }}</strong></td>
-          <td>{{ user.role }}</td>
-          <td>{{ user.email or "Sin email" }}</td>
-          <td>{{ "Sí" if user.notifications_enabled else "No" }}</td>
-          <td>{{ user.products_count }}</td>
-          <td>{{ user.created_at|date_es }}</td>
-        </tr>
-      {% else %}
-        <tr><td colspan="6">No hay usuarios.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="user-list">
+    {% for user in users %}
+      <article class="user-card">
+        <div class="user-summary">
+          <div class="avatar small">{{ user.username[:2]|upper }}</div>
+          <div>
+            <h3>{{ user.username }}</h3>
+            <p>{{ user.email or "Sin email" }} · Alta {{ user.created_at|date_es }}</p>
+          </div>
+          <span class="status-pill">{{ user.products_count }} productos</span>
+        </div>
+
+        <form method="post" action="{{ url_for('admin_update_user', user_id=user.id) }}" class="user-edit-grid">
+          <label>Usuario
+            <input name="username" value="{{ user.username }}" required minlength="3">
+          </label>
+          <label>Email
+            <input name="email" type="email" value="{{ user.email or '' }}">
+          </label>
+          <label>Rol
+            <select name="role">
+              <option value="user" {% if user.role == 'user' %}selected{% endif %}>Usuario</option>
+              <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
+            </select>
+          </label>
+          <label>Nueva contraseña
+            <input name="password" type="password" placeholder="Dejar vacío">
+          </label>
+          <label class="switch field-switch">
+            <input name="notifications_enabled" type="checkbox" {% if user.notifications_enabled %}checked{% endif %}>
+            <span></span>
+            Alertas email
+          </label>
+          <button type="submit">Guardar usuario</button>
+        </form>
+
+        <form method="post" action="{{ url_for('admin_delete_user', user_id=user.id) }}" class="user-delete-form">
+          <button class="danger compact" type="submit" {% if user.id == session.get('user_id') %}disabled{% endif %}>Eliminar usuario</button>
+        </form>
+      </article>
+    {% else %}
+      <section class="empty-state">
+        <p>No hay usuarios registrados.</p>
+      </section>
+    {% endfor %}
+  </div>
 </section>
 
 <section class="panel">

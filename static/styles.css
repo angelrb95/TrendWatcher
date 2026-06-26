@@ -912,6 +912,64 @@ tbody tr:hover {
   background: linear-gradient(135deg, var(--accent), var(--rose));
 }
 
+.avatar.small {
+  width: 50px;
+  height: 50px;
+  font-size: 16px;
+}
+
+.user-management {
+  overflow: visible;
+}
+
+.user-list {
+  display: grid;
+  gap: 14px;
+}
+
+.user-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.user-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-summary h3 {
+  margin: 0 0 3px;
+  font-size: 18px;
+}
+
+.user-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.user-delete-form {
+  display: flex;
+  justify-content: flex-end;
+}
+
+button:disabled,
+button:disabled:hover {
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  opacity: .48;
+  border-color: var(--line-strong);
+  background: #b8c0bb;
+}
+
 .product-detail-hero {
   display: grid;
   grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
@@ -1106,6 +1164,14 @@ tbody tr:hover {
 
   .events li {
     grid-template-columns: 1fr;
+  }
+
+  .user-summary {
+    grid-template-columns: auto 1fr;
+  }
+
+  .user-summary .status-pill {
+    grid-column: 1 / -1;
   }
 
   .events small {

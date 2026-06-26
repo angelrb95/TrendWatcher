@@ -394,6 +394,69 @@ def get_user(user_id: int) -> sqlite3.Row | None:
         return conn.execute("SELECT * FROM app_users WHERE id = ?", (user_id,)).fetchone()
 
 
+def count_admin_users() -> int:
+    with db() as conn:
+        return int(conn.execute("SELECT COUNT(*) AS total FROM app_users WHERE role = 'admin'").fetchone()["total"])
+
+
+def update_admin_user(
+    user_id: int,
+    username: str,
+    email: str,
+    role: str,
+    notifications_enabled: bool,
+    password: str = "",
+) -> tuple[bool, str]:
+    current = get_user(user_id)
+    if not current:
+        return False, "Usuario no encontrado."
+    if not username or len(username) < 3:
+        return False, "El usuario debe tener al menos 3 caracteres."
+    if role not in {"admin", "user"}:
+        return False, "Rol no válido."
+    if current["role"] == "admin" and role != "admin" and count_admin_users() <= 1:
+        return False, "No puedes quitar el último admin."
+    if password and len(password) < 8:
+        return False, "La contraseña debe tener al menos 8 caracteres."
+
+    try:
+        with db() as conn:
+            conn.execute(
+                """
+                UPDATE app_users
+                SET username = ?, email = ?, role = ?, notifications_enabled = ?
+                WHERE id = ?
+                """,
+                (username, email, role, int(notifications_enabled), user_id),
+            )
+            if password:
+                conn.execute(
+                    "UPDATE app_users SET password = ? WHERE id = ?",
+                    (generate_password_hash(password), user_id),
+                )
+            conn.commit()
+        return True, "Usuario actualizado."
+    except sqlite3.IntegrityError:
+        return False, "Ese nombre de usuario ya existe."
+
+
+def delete_app_user(user_id: int) -> tuple[bool, str]:
+    user = get_user(user_id)
+    if not user:
+        return False, "Usuario no encontrado."
+    if user["role"] == "admin" and count_admin_users() <= 1:
+        return False, "No puedes eliminar el último admin."
+
+    with db() as conn:
+        conn.execute("DELETE FROM password_reset_tokens WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM user_products WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM app_users WHERE id = ?", (user_id,))
+        conn.commit()
+    removed = cleanup_orphan_products()
+    suffix = f" Productos sin usuarios eliminados: {removed}." if removed else ""
+    return True, f"Usuario eliminado.{suffix}"
+
+
 def get_product(product_id: int, user_id: int | None = None, admin: bool = False) -> sqlite3.Row | None:
     with db() as conn:
         if admin:
@@ -1074,6 +1137,37 @@ def create_user() -> Any:
             flash("Usuario creado.", "success")
         except sqlite3.IntegrityError:
             flash("Ese usuario ya existe.", "error")
+    return redirect(url_for("admin"))
+
+
+@app.route("/admin/users/<int:user_id>/update", methods=["POST"])
+@login_required("admin")
+def admin_update_user(user_id: int) -> Any:
+    ok, message = update_admin_user(
+        user_id=user_id,
+        username=request.form.get("username", "").strip(),
+        email=request.form.get("email", "").strip(),
+        role=request.form.get("role", "user"),
+        notifications_enabled=request.form.get("notifications_enabled") == "on",
+        password=request.form.get("password", "").strip(),
+    )
+    if ok and user_id == int(session["user_id"]):
+        updated = get_user(user_id)
+        if updated:
+            session["username"] = updated["username"]
+            session["role"] = updated["role"]
+    flash(message, "success" if ok else "error")
+    return redirect(url_for("admin"))
+
+
+@app.route("/admin/users/<int:user_id>/delete", methods=["POST"])
+@login_required("admin")
+def admin_delete_user(user_id: int) -> Any:
+    if user_id == int(session["user_id"]):
+        flash("No puedes eliminar tu propia cuenta desde esta pantalla.", "error")
+        return redirect(url_for("admin"))
+    ok, message = delete_app_user(user_id)
+    flash(message, "success" if ok else "error")
     return redirect(url_for("admin"))
 
 
