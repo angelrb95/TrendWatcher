@@ -673,8 +673,22 @@ def image_urls(value: str | None) -> list[str]:
 def product_code(value: str | None) -> str:
     if not value:
         return "No detectado"
+    asin = monitor.asin_from_url(value)
+    if asin:
+        return asin
     match = monitor.product_code_from_url(value)
     return match.upper() if match else "No detectado"
+
+
+@app.template_filter("store_name")
+def store_name(value: str | None) -> str:
+    if not value:
+        return "Tienda"
+    if monitor.is_amazon_url(value):
+        return "Amazon"
+    if monitor.is_stradivarius_url(value):
+        return "Stradivarius"
+    return "Tienda"
 
 
 @app.route("/login", methods=["GET", "POST"])

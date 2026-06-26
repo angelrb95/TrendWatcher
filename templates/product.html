@@ -4,7 +4,7 @@
   <div>
     <p class="eyebrow">{{ product.scrape_status|scrape_status }}</p>
     <h1>{{ product.name }}</h1>
-    <p>Código: {{ product.url|product_code }} · Color: {{ product.color or "No detectado" }} · Última revisión: {{ product.last_checked_at|date_es }}</p>
+    <p>Tienda: {{ product.url|store_name }} · Código: {{ product.url|product_code }}{% if product.color %} · Color: {{ product.color }}{% endif %} · Última revisión: {{ product.last_checked_at|date_es }}</p>
     <p><a href="{{ product.url }}" target="_blank" rel="noreferrer">{{ product.url }}</a></p>
   </div>
   <span class="badge {{ product|availability_class }}">{{ product|availability_label }}</span>

@@ -1,16 +1,17 @@
 # TrendWatcher
 
-Aplicacion web autoalojable para vigilar productos de Stradivarius: precio, stock, tallas, color, referencia, medidas e imagenes.
+Aplicacion web autoalojable para vigilar productos de Stradivarius y Amazon: precio, stock, tallas, color, referencia, medidas e imagenes.
 
 ## Funciones
 
 - Panel de usuario con productos propios, disponibilidad, tallas, medidas e imagenes.
+- Soporte para enlaces de Stradivarius y Amazon.
 - Registro de nuevos usuarios y recuperacion de contrasena por email.
 - Panel admin con revision manual, usuarios, configuracion SMTP/Telegram y prueba de email.
 - Escaneo automatico cada 5 minutos.
 - Alertas por Telegram y SMTP cuando baja el precio o vuelve el stock.
 - SQLite persistente en `./data`.
-- Playwright headless con `playwright-stealth` para leer datos dinamicos de Stradivarius.
+- Playwright headless con `playwright-stealth` para leer datos dinamicos de las tiendas soportadas.
 
 ## Acceso
 

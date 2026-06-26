@@ -17,8 +17,8 @@
     <h2>Añadir producto</h2>
     <form method="post" class="form-stack">
       <input type="hidden" name="action" value="add_product">
-      <label>URL de Stradivarius
-        <input name="url" placeholder="https://www.stradivarius.com/..." required>
+      <label>URL de producto
+        <input name="url" placeholder="https://www.stradivarius.com/... o https://www.amazon.es/..." required>
       </label>
       <button type="submit">Guardar producto</button>
     </form>
@@ -100,11 +100,12 @@
 <section class="panel">
   <h2>Catálogo global</h2>
   <table>
-    <thead><tr><th>Producto</th><th>Código</th><th>Color</th><th>Lectura</th><th>Precio</th><th>Stock</th><th>Última revisión</th><th>Usuarios</th><th>URL</th><th></th></tr></thead>
+    <thead><tr><th>Producto</th><th>Tienda</th><th>Código</th><th>Color</th><th>Lectura</th><th>Precio</th><th>Stock</th><th>Última revisión</th><th>Usuarios</th><th>URL</th><th></th></tr></thead>
     <tbody>
       {% for product in products %}
         <tr>
           <td>{{ product.name }}</td>
+          <td>{{ product.url|store_name }}</td>
           <td>{{ product.url|product_code }}</td>
           <td>{{ product.color or "-" }}</td>
           <td>{{ product.scrape_status|scrape_status }}</td>
@@ -122,7 +123,7 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="10">No hay productos.</td></tr>
+        <tr><td colspan="11">No hay productos.</td></tr>
       {% endfor %}
     </tbody>
   </table>

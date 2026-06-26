@@ -1,5 +1,5 @@
 """
-Monitor de precios y stock para productos de Stradivarius.
+Monitor de precios y stock para productos de Stradivarius y Amazon.
 
 Requisitos:
     pip install -r requirements.txt
@@ -57,6 +57,7 @@ COLOR_NAMES = {
 }
 CLOTHING_SIZES = ("XXS", "XS", "S", "M", "L", "XL", "XXL")
 SOLD_OUT_WORDS = ("agotado", "sin stock", "no disponible", "out of stock", "sold out")
+AMAZON_DOMAINS = ("amazon.", "amzn.")
 
 
 @dataclass
@@ -329,6 +330,29 @@ def parse_price(value: Any) -> tuple[float | None, str]:
     if amount > 1000 and re.fullmatch(r"\d+", text.strip()):
         amount = amount / 100
     return amount, currency
+
+
+def is_amazon_url(url: str) -> bool:
+    host = urlparse(url).netloc.lower()
+    return any(domain in host for domain in AMAZON_DOMAINS)
+
+
+def is_stradivarius_url(url: str) -> bool:
+    return "stradivarius." in urlparse(url).netloc.lower()
+
+
+def asin_from_url(url: str) -> str | None:
+    patterns = [
+        r"/dp/([A-Z0-9]{10})",
+        r"/gp/product/([A-Z0-9]{10})",
+        r"/product/([A-Z0-9]{10})",
+        r"[?&]asin=([A-Z0-9]{10})",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, url, flags=re.IGNORECASE)
+        if match:
+            return match.group(1).upper()
+    return None
 
 
 def flatten_json(value: Any) -> list[dict[str, Any]]:
@@ -810,11 +834,158 @@ async def collect_product_images(page: Page, limit: int = 3) -> list[str]:
     return product_images
 
 
+async def collect_amazon_images(page: Page, limit: int = 3) -> list[str]:
+    try:
+        urls = await page.evaluate(
+            """
+            () => {
+              const found = [];
+              const push = value => {
+                if (value && typeof value === 'string' && value.startsWith('http') && !found.includes(value)) {
+                  found.push(value);
+                }
+              };
+              const landing = document.querySelector('#landingImage');
+              if (landing) {
+                push(landing.getAttribute('data-old-hires'));
+                push(landing.currentSrc || landing.src);
+                const dynamic = landing.getAttribute('data-a-dynamic-image');
+                if (dynamic) {
+                  try { Object.keys(JSON.parse(dynamic)).forEach(push); } catch (_) {}
+                }
+              }
+              document.querySelectorAll('#altImages img, img.a-dynamic-image').forEach(img => {
+                push(img.getAttribute('data-old-hires'));
+                push(img.currentSrc || img.src);
+              });
+              return found;
+            }
+            """
+        )
+    except Exception:
+        return []
+    return [str(url) for url in urls[:limit]]
+
+
+async def first_text(page: Page, selectors: list[str], timeout: int = 1500) -> str:
+    for selector in selectors:
+        try:
+            text = await page.locator(selector).first.text_content(timeout=timeout)
+            cleaned = clean_text(text)
+            if cleaned:
+                return cleaned
+        except Exception:
+            continue
+    return ""
+
+
+async def check_amazon_product(browser: Browser, url: str) -> ProductSnapshot:
+    user_agent = random.choice(USER_AGENTS)
+    context = await browser.new_context(
+        user_agent=user_agent,
+        locale="es-ES",
+        timezone_id="Europe/Madrid",
+        viewport={"width": random.randint(1280, 1440), "height": random.randint(800, 960)},
+    )
+    page = await context.new_page()
+    try:
+        await asyncio.sleep(random.uniform(1.0, 3.0))
+        response = await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        await page.wait_for_timeout(3500)
+        title = await page.title()
+        body_text = await page.locator("body").inner_text(timeout=10000)
+        lowered = body_text.lower()
+        if response and response.status in (403, 429, 503):
+            return blocked_amazon_snapshot(url, f"HTTP {response.status}: {body_text[:800]}")
+        if any(term in lowered for term in ("introduce los caracteres", "captcha", "robot check", "not a robot")):
+            return blocked_amazon_snapshot(url, body_text)
+
+        name = await first_text(page, ["#productTitle", "#title", "h1"])
+        if not name:
+            name = clean_text(title.replace("Amazon.es", "").replace(": ", " "))
+        price_text = await first_text(
+            page,
+            [
+                "#corePrice_feature_div .a-offscreen",
+                "#apex_desktop .a-price .a-offscreen",
+                "#priceblock_ourprice",
+                "#priceblock_dealprice",
+                ".a-price .a-offscreen",
+            ],
+        )
+        price, currency = parse_price(price_text)
+        availability = await first_text(page, ["#availability", "#outOfStock", "#desktop_buybox", "#buybox"])
+        availability_lower = availability.lower()
+        sold_out = any(term in availability_lower for term in (
+            "actualmente no disponible", "no disponible", "agotado", "sin stock", "unavailable",
+        ))
+        in_stock = False
+        if not sold_out:
+            in_stock = any(term in availability_lower for term in (
+                "en stock", "disponible", "añadir al carrito", "add to cart", "entrega",
+            ))
+            if not in_stock:
+                try:
+                    in_stock = await page.locator("#add-to-cart-button").count() > 0
+                except Exception:
+                    in_stock = False
+
+        asin = asin_from_url(url) or ""
+        images = await collect_amazon_images(page)
+        summary = {
+            "name": name,
+            "price_text": price_text,
+            "availability": availability,
+            "asin": asin,
+            "images": images,
+        }
+        return ProductSnapshot(
+            url=url,
+            name=name or "Producto Amazon",
+            price=price,
+            currency=currency,
+            in_stock=in_stock,
+            sizes={},
+            source="amazon_dom",
+            raw_summary=json.dumps(summary, ensure_ascii=False)[:1500],
+            reference=asin,
+            product_type="Amazon",
+            image_urls=images,
+            status="ok",
+        )
+    finally:
+        await context.close()
+
+
+def blocked_amazon_snapshot(url: str, body_text: str = "") -> ProductSnapshot:
+    asin = asin_from_url(url) or ""
+    return ProductSnapshot(
+        url=url,
+        name=f"Producto Amazon {asin}".strip(),
+        price=None,
+        currency="EUR",
+        in_stock=False,
+        sizes={},
+        source="bloqueo_amazon",
+        raw_summary=body_text[:1500],
+        reference=asin,
+        product_type="Amazon",
+        status="blocked",
+        error=(
+            "Amazon ha bloqueado o limitado la lectura automatizada. "
+            "No se pudieron leer precio y disponibilidad con fiabilidad."
+        ),
+    )
+
+
 def clean_text(value: str | None) -> str:
     return re.sub(r"\s+", " ", value or "").strip()
 
 
 async def check_product(browser: Browser, url: str) -> ProductSnapshot:
+    if is_amazon_url(url):
+        return await check_amazon_product(browser, url)
+
     user_agent = random.choice(USER_AGENTS)
     context = await browser.new_context(
         user_agent=user_agent,
@@ -875,8 +1046,9 @@ def format_alert_message(snapshot: ProductSnapshot, reasons: list[str]) -> str:
             for size, available in snapshot.sizes.items()
         )
 
+    store = "Amazon" if is_amazon_url(snapshot.url) else "Stradivarius"
     return (
-        "Alerta Stradivarius\n"
+        f"Alerta {store}\n"
         f"Producto: {snapshot.name}\n"
         f"Motivo: {' | '.join(reasons)}\n"
         f"Precio actual: {snapshot.price if snapshot.price is not None else 'No detectado'} {snapshot.currency}\n"
