@@ -189,11 +189,50 @@ def init_app_db() -> None:
                 conn.execute("UPDATE app_config SET value = '5' WHERE key = 'check_interval_minutes'")
         conn.commit()
 
+    repair_product_urls()
     repair_weak_product_data()
 
     for url in [item.strip() for item in os.getenv("PRODUCT_URLS", "").split(",") if item.strip()]:
         product_id = ensure_product(url)
         subscribe_user(admin_id, product_id)
+
+
+def repair_product_urls() -> None:
+    with db() as conn:
+        rows = conn.execute("SELECT * FROM products").fetchall()
+        for row in rows:
+            normalized_url = monitor.normalize_product_url(row["url"])
+            if not normalized_url or normalized_url == row["url"]:
+                continue
+            existing = conn.execute(
+                "SELECT id FROM products WHERE url = ? AND id != ?",
+                (normalized_url, row["id"]),
+            ).fetchone()
+            if existing:
+                existing_id = int(existing["id"])
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO user_products (
+                        user_id, product_id, notify_price_drop, notify_restock, created_at
+                    )
+                    SELECT user_id, ?, notify_price_drop, notify_restock, created_at
+                    FROM user_products
+                    WHERE product_id = ?
+                    """,
+                    (existing_id, row["id"]),
+                )
+                conn.execute(
+                    "UPDATE price_stock_history SET product_id = ? WHERE product_id = ?",
+                    (existing_id, row["id"]),
+                )
+                conn.execute("DELETE FROM user_products WHERE product_id = ?", (row["id"],))
+                conn.execute("DELETE FROM products WHERE id = ?", (row["id"],))
+            else:
+                conn.execute(
+                    "UPDATE products SET url = ? WHERE id = ?",
+                    (normalized_url, row["id"]),
+                )
+        conn.commit()
 
 
 def repair_weak_product_data() -> None:
@@ -338,7 +377,7 @@ def recent_events(limit: int = 50) -> list[sqlite3.Row]:
 
 def ensure_product(url: str, name: str = "Producto vigilado") -> int:
     now = utc_now()
-    clean_url = url.strip()
+    clean_url = monitor.normalize_product_url(url)
     with db() as conn:
         conn.execute(
             """

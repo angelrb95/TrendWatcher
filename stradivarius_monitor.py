@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 from urllib.parse import parse_qs
 from typing import Any
 
@@ -216,6 +216,7 @@ def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition:
 
 
 def get_latest_snapshot(db_path: Path, url: str) -> dict[str, Any] | None:
+    url = normalize_product_url(url)
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
@@ -234,6 +235,7 @@ def get_latest_snapshot(db_path: Path, url: str) -> dict[str, Any] | None:
 
 def save_to_db(db_path: Path, snapshot: ProductSnapshot) -> None:
     now = datetime.now(timezone.utc).isoformat()
+    snapshot.url = normalize_product_url(snapshot.url)
     sizes_json = json.dumps(snapshot.sizes, ensure_ascii=False)
     measurements_json = json.dumps(snapshot.measurements or {}, ensure_ascii=False)
     image_urls_json = json.dumps(snapshot.image_urls or [], ensure_ascii=False)
@@ -332,13 +334,28 @@ def parse_price(value: Any) -> tuple[float | None, str]:
     return amount, currency
 
 
+def normalize_product_url(url: str) -> str:
+    cleaned = (url or "").strip()
+    if not cleaned:
+        return cleaned
+    if not re.match(r"^https?://", cleaned, flags=re.IGNORECASE):
+        cleaned = f"https://{cleaned.lstrip('/')}"
+    parsed = urlparse(cleaned)
+    host = parsed.netloc.lower()
+    if any(domain in host for domain in AMAZON_DOMAINS):
+        asin = asin_from_url(cleaned)
+        if asin:
+            return urlunparse(("https", host, f"/dp/{asin}", "", "", ""))
+    return cleaned
+
+
 def is_amazon_url(url: str) -> bool:
-    host = urlparse(url).netloc.lower()
+    host = urlparse(normalize_product_url(url)).netloc.lower()
     return any(domain in host for domain in AMAZON_DOMAINS)
 
 
 def is_stradivarius_url(url: str) -> bool:
-    return "stradivarius." in urlparse(url).netloc.lower()
+    return "stradivarius." in urlparse(normalize_product_url(url)).netloc.lower()
 
 
 def asin_from_url(url: str) -> str | None:
@@ -567,7 +584,7 @@ def product_code_from_url(url: str) -> str | None:
 
 
 def product_name_from_url(url: str) -> str:
-    path = urlparse(url).path
+    path = urlparse(normalize_product_url(url)).path
     slug = path.rsplit("/", 1)[-1].split("-l", 1)[0]
     if not slug:
         return "Producto vigilado"
@@ -591,7 +608,7 @@ def normalize_product_name(value: str | None, url: str) -> str:
 
 
 def default_sizes_from_url(url: str) -> dict[str, bool]:
-    path = urlparse(url).path.lower()
+    path = urlparse(normalize_product_url(url)).path.lower()
     if any(word in path for word in ("bolso", "bag", "collar", "pendientes", "cinturon", "perfume")):
         return {"Talla unica": True}
     return {}
@@ -880,6 +897,7 @@ async def first_text(page: Page, selectors: list[str], timeout: int = 1500) -> s
 
 
 async def check_amazon_product(browser: Browser, url: str) -> ProductSnapshot:
+    url = normalize_product_url(url)
     user_agent = random.choice(USER_AGENTS)
     context = await browser.new_context(
         user_agent=user_agent,
@@ -983,6 +1001,7 @@ def clean_text(value: str | None) -> str:
 
 
 async def check_product(browser: Browser, url: str) -> ProductSnapshot:
+    url = normalize_product_url(url)
     if is_amazon_url(url):
         return await check_amazon_product(browser, url)
 
