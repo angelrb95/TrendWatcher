@@ -187,15 +187,22 @@ def init_app_db() -> None:
                 conn.execute("UPDATE app_config SET value = ? WHERE key = ?", (value, key))
             elif key == "check_interval_minutes" and current["value"] in {"", "30"}:
                 conn.execute("UPDATE app_config SET value = '5' WHERE key = 'check_interval_minutes'")
+        product_count = conn.execute("SELECT COUNT(*) AS total FROM products").fetchone()["total"]
+        seed_marker = conn.execute("SELECT value FROM app_config WHERE key = 'product_urls_seeded'").fetchone()
+        seed_env_products = seed_marker is None and product_count == 0
+        if seed_marker is None and product_count > 0:
+            conn.execute("INSERT INTO app_config (key, value) VALUES ('product_urls_seeded', 'true')")
         conn.commit()
 
     repair_product_urls()
     repair_weak_product_data()
     cleanup_orphan_products()
 
-    for url in [item.strip() for item in os.getenv("PRODUCT_URLS", "").split(",") if item.strip()]:
-        product_id = ensure_product(url)
-        subscribe_user(admin_id, product_id)
+    if seed_env_products:
+        for url in [item.strip() for item in os.getenv("PRODUCT_URLS", "").split(",") if item.strip()]:
+            product_id = ensure_product(url)
+            subscribe_user(admin_id, product_id)
+        set_config({"product_urls_seeded": "true"})
 
 
 def repair_product_urls() -> None:
