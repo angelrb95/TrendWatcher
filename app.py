@@ -191,6 +191,7 @@ def init_app_db() -> None:
 
     repair_product_urls()
     repair_weak_product_data()
+    cleanup_orphan_products()
 
     for url in [item.strip() for item in os.getenv("PRODUCT_URLS", "").split(",") if item.strip()]:
         product_id = ensure_product(url)
@@ -247,6 +248,23 @@ def repair_weak_product_data() -> None:
         conn.commit()
 
 
+def cleanup_orphan_products() -> int:
+    with db() as conn:
+        rows = conn.execute(
+            """
+            SELECT p.id
+            FROM products p
+            LEFT JOIN user_products up ON up.product_id = p.id
+            WHERE up.id IS NULL
+            """
+        ).fetchall()
+        for row in rows:
+            conn.execute("DELETE FROM price_stock_history WHERE product_id = ?", (row["id"],))
+            conn.execute("DELETE FROM products WHERE id = ?", (row["id"],))
+        conn.commit()
+    return len(rows)
+
+
 def add_event(level: str, message: str) -> None:
     logging.info("%s: %s", level.upper(), message)
     with db() as conn:
@@ -275,7 +293,7 @@ def set_config(values: dict[str, str]) -> None:
 
 def build_settings() -> monitor.Settings:
     config = get_config()
-    urls = [row["url"] for row in list_all_products()]
+    urls = list_tracked_product_urls()
     smtp_username = config.get("smtp_username", "")
     return monitor.Settings(
         product_urls=urls,
@@ -291,6 +309,35 @@ def build_settings() -> monitor.Settings:
         email_from=config.get("email_from", "") or smtp_username,
         email_to=config.get("email_to", ""),
     )
+
+
+def list_tracked_product_urls() -> list[str]:
+    with db() as conn:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT p.url
+            FROM products p
+            JOIN user_products up ON up.product_id = p.id
+            ORDER BY p.created_at DESC
+            """
+        ).fetchall()
+    return [row["url"] for row in rows]
+
+
+def is_url_tracked(url: str) -> bool:
+    normalized_url = monitor.normalize_product_url(url)
+    with db() as conn:
+        row = conn.execute(
+            """
+            SELECT 1
+            FROM products p
+            JOIN user_products up ON up.product_id = p.id
+            WHERE p.url = ?
+            LIMIT 1
+            """,
+            (normalized_url,),
+        ).fetchone()
+    return row is not None
 
 
 def list_all_products() -> list[sqlite3.Row]:
@@ -411,6 +458,13 @@ def subscribe_user(user_id: int, product_id: int) -> None:
 def unsubscribe_user_product(user_id: int, product_id: int) -> None:
     with db() as conn:
         conn.execute("DELETE FROM user_products WHERE user_id = ? AND product_id = ?", (user_id, product_id))
+        followers = conn.execute(
+            "SELECT COUNT(*) AS total FROM user_products WHERE product_id = ?",
+            (product_id,),
+        ).fetchone()["total"]
+        if followers == 0:
+            conn.execute("DELETE FROM price_stock_history WHERE product_id = ?", (product_id,))
+            conn.execute("DELETE FROM products WHERE id = ?", (product_id,))
         conn.commit()
 
 
@@ -507,6 +561,9 @@ async def check_urls(settings: monitor.Settings, urls: list[str]) -> None:
         try:
             for url in urls:
                 try:
+                    if not is_url_tracked(url):
+                        add_event("info", f"Producto omitido porque ya no tiene usuarios: {url}")
+                        continue
                     previous = monitor.get_latest_snapshot(settings.database_path, url)
                     snapshot = await monitor.check_product(browser, url)
                     alerts = monitor.build_alerts(previous, snapshot)
@@ -939,6 +996,9 @@ def admin() -> Any:
         elif action == "delete_product":
             delete_product(int(request.form["product_id"]))
             flash("Producto eliminado para todos los usuarios.", "success")
+        elif action == "cleanup_orphans":
+            removed = cleanup_orphan_products()
+            flash(f"Productos sin usuarios eliminados: {removed}.", "success")
         elif action == "config":
             current_config = get_config()
             smtp_password = request.form.get("smtp_password", "")

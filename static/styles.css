@@ -243,6 +243,13 @@ a:hover { color: var(--accent-dark); }
   background: rgba(255, 255, 255, .86);
 }
 
+.head-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .eyebrow {
   margin: 0 0 7px;
   color: var(--blue);
@@ -1005,6 +1012,10 @@ tbody tr:hover {
   .admin-head {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .head-actions {
+    justify-content: flex-start;
   }
 
   .hero-metrics {

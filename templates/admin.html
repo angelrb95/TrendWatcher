@@ -6,10 +6,16 @@
     <h1>Centro de control</h1>
     <p>Gestiona catálogo, usuarios, alertas y frecuencia de revisión desde un único panel.</p>
   </div>
-  <form method="post">
-    <input type="hidden" name="action" value="run_now">
-    <button type="submit">Revisar ahora</button>
-  </form>
+  <div class="head-actions">
+    <form method="post">
+      <input type="hidden" name="action" value="cleanup_orphans">
+      <button class="secondary" type="submit">Limpiar sin usuarios</button>
+    </form>
+    <form method="post">
+      <input type="hidden" name="action" value="run_now">
+      <button type="submit">Revisar ahora</button>
+    </form>
+  </div>
 </section>
 
 <section class="stats-row">
@@ -110,7 +116,7 @@
   <div class="panel-head">
     <div>
       <p class="eyebrow">Productos</p>
-      <h2>Catálogo global</h2>
+      <h2>Catálogo activo</h2>
     </div>
   </div>
   <table>
