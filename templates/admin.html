@@ -163,7 +163,12 @@
           <div class="avatar small">{{ user.username[:2]|upper }}</div>
           <div>
             <h3>{{ user.username }}</h3>
-            <p>{{ user.email or "Sin email" }} · Alta {{ user.created_at|date_es }}</p>
+            <p>
+              {{ user.email or "Sin email" }} · Alta {{ user.created_at|date_es }}
+              {% if user.duplicate_email_count and user.duplicate_email_count > 1 %}
+                <span class="duplicate-pill">Email duplicado</span>
+              {% endif %}
+            </p>
           </div>
           <span class="status-pill">{{ user.products_count }} productos</span>
         </div>

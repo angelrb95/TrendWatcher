@@ -399,7 +399,13 @@ def list_users() -> list[sqlite3.Row]:
         return conn.execute(
             """
             SELECT u.id, u.username, u.role, u.email, u.notifications_enabled, u.created_at,
-                   COUNT(up.id) AS products_count
+                   COUNT(up.id) AS products_count,
+                   (
+                       SELECT COUNT(*)
+                       FROM app_users du
+                       WHERE COALESCE(u.email, '') != ''
+                         AND lower(du.email) = lower(u.email)
+                   ) AS duplicate_email_count
             FROM app_users u
             LEFT JOIN user_products up ON up.user_id = u.id
             GROUP BY u.id

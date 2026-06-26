@@ -576,6 +576,17 @@ p { margin: 0; color: var(--muted); line-height: 1.55; }
 .badge.warn { color: var(--warn); background: var(--warn-soft); }
 .status-pill { color: var(--ink); background: #edf2f6; }
 
+.duplicate-pill {
+  display: inline-flex;
+  margin-left: 8px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: var(--danger);
+  background: var(--danger-soft);
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .button,
 button {
   display: inline-flex;
