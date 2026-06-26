@@ -1,13 +1,23 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="page-head">
-  <div>
+{% set photos = product.image_urls_json|image_urls %}
+<section class="product-detail-hero surface">
+  <div class="detail-media">
+    {% if photos %}
+      <img src="{{ photos[0] }}" alt="{{ product.name }}">
+    {% else %}
+      <span>{{ product.url|store_name }}</span>
+    {% endif %}
+  </div>
+  <div class="detail-copy">
     <p class="eyebrow">{{ product.scrape_status|scrape_status }}</p>
     <h1>{{ product.name }}</h1>
-    <p>Tienda: {{ product.url|store_name }} · Código: {{ product.url|product_code }}{% if product.color %} · Color: {{ product.color }}{% endif %} · Última revisión: {{ product.last_checked_at|date_es }}</p>
-    <p><a href="{{ product.url }}" target="_blank" rel="noreferrer">{{ product.url }}</a></p>
+    <p>Tienda: {{ product.url|store_name }} · Código: {{ product.url|product_code }}{% if product.color %} · Color: {{ product.color }}{% endif %}</p>
+    <div class="detail-actions">
+      <span class="badge {{ product|availability_class }}">{{ product|availability_label }}</span>
+      <a class="button secondary" href="{{ product.url }}" target="_blank" rel="noreferrer">Abrir tienda</a>
+    </div>
   </div>
-  <span class="badge {{ product|availability_class }}">{{ product|availability_label }}</span>
 </section>
 
 {% if product.scrape_status == 'blocked' %}
@@ -17,26 +27,30 @@
 </section>
 {% endif %}
 
-{% set photos = product.image_urls_json|image_urls %}
-{% if photos %}
+{% if photos|length > 1 %}
 <section class="product-gallery">
   {% for photo in photos %}
-    <img src="{{ photo }}" alt="{{ product.name }}">
+    <img src="{{ photo }}" alt="{{ product.name }}" loading="lazy">
   {% endfor %}
 </section>
 {% endif %}
 
-<section class="stats-row">
-  <article><strong>{{ product.current_price|money }}</strong><span>precio actual</span></article>
-  <article><strong>{{ product.reference or "No detectada" }}</strong><span>referencia</span></article>
-  <article><strong>{{ product|availability_label }}</strong><span>stock</span></article>
-  <article><strong>{{ product.last_checked_at|date_es }}</strong><span>última revisión</span></article>
-  <article><strong>{{ product.sizes_json|sizes }}</strong><span>tallas</span></article>
-  <article><strong>{{ product.measurements_json|measurements }}</strong><span>medidas</span></article>
+<section class="stats-row detail-stats">
+  <article class="stat-card"><span>Precio actual</span><strong>{{ product.current_price|money }}</strong><small>{{ product.url|store_name }}</small></article>
+  <article class="stat-card"><span>Referencia</span><strong>{{ product.reference or "No detectada" }}</strong><small>{{ product.url|product_code }}</small></article>
+  <article class="stat-card"><span>Stock</span><strong>{{ product|availability_label }}</strong><small>Estado actual</small></article>
+  <article class="stat-card"><span>Última revisión</span><strong>{{ product.last_checked_at|date_es }}</strong><small>Hora local</small></article>
+  <article class="stat-card wide"><span>Tallas</span><strong>{{ product.sizes_json|sizes }}</strong><small>Disponibilidad detectada</small></article>
+  <article class="stat-card wide"><span>Medidas</span><strong>{{ product.measurements_json|measurements }}</strong><small>Información adicional</small></article>
 </section>
 
-<section class="panel">
-  <h2>Histórico</h2>
+<section class="panel table-panel">
+  <div class="panel-head">
+    <div>
+      <p class="eyebrow">Evolución</p>
+      <h2>Histórico de lecturas</h2>
+    </div>
+  </div>
   <table>
     <thead>
       <tr>

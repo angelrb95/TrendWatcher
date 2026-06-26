@@ -11,19 +11,19 @@
   <header class="topbar">
     <a class="brand" href="{{ url_for('dashboard') }}">
       <span class="brand-mark">TW</span>
-      <span>TrendWatcher</span>
+      <span class="brand-copy"><strong>TrendWatcher</strong><small>Product monitor</small></span>
     </a>
     <nav class="nav-links">
       {% if session.get("user_id") %}
-        <a href="{{ url_for('dashboard') }}">Productos</a>
-        <a href="{{ url_for('profile') }}">Perfil</a>
+        <a class="{{ 'active' if request.endpoint == 'dashboard' else '' }}" href="{{ url_for('dashboard') }}">Productos</a>
+        <a class="{{ 'active' if request.endpoint == 'profile' else '' }}" href="{{ url_for('profile') }}">Perfil</a>
         {% if session.get("role") == "admin" %}
-          <a href="{{ url_for('admin') }}">Admin</a>
+          <a class="{{ 'active' if request.endpoint == 'admin' else '' }}" href="{{ url_for('admin') }}">Admin</a>
         {% endif %}
         <a href="{{ url_for('logout') }}">Salir</a>
       {% else %}
-        <a href="{{ url_for('login') }}">Entrar</a>
-        <a href="{{ url_for('register') }}">Registrarme</a>
+        <a class="{{ 'active' if request.endpoint == 'login' else '' }}" href="{{ url_for('login') }}">Entrar</a>
+        <a class="{{ 'active' if request.endpoint == 'register' else '' }}" href="{{ url_for('register') }}">Registrarme</a>
       {% endif %}
     </nav>
   </header>

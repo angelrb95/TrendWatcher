@@ -1,43 +1,56 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="hero">
-  <div>
-    <p class="eyebrow">Panel de seguimiento</p>
-    <h1>TrendWatcher</h1>
-    <p>Vigila precio, stock e imágenes de tus productos favoritos en Stradivarius y Amazon.</p>
+<section class="hero dashboard-hero">
+  <div class="hero-copy">
+    <p class="eyebrow">Panel personal</p>
+    <h1>Tus productos bajo control.</h1>
+    <p>TrendWatcher revisa precio, stock, tallas e imágenes cada pocos minutos y mantiene tus alertas listas.</p>
   </div>
-  <div class="hero-pulse">
-    <strong>5 min</strong>
-    <span>escaneo automático</span>
+  <div class="hero-metrics">
+    <article><span>Total</span><strong>{{ products|length }}</strong></article>
+    <article><span>Disponibles</span><strong>{{ products|selectattr('in_stock')|list|length }}</strong></article>
+    <article><span>Escaneo</span><strong>5 min</strong></article>
   </div>
 </section>
 
-<section class="quick-add">
+<section class="quick-add surface">
   <div>
+    <p class="eyebrow">Nuevo seguimiento</p>
     <h2>Añadir producto</h2>
-    <p>Pega una URL de Stradivarius o Amazon. La primera revisión completará nombre, precio, disponibilidad e imágenes.</p>
+    <p>Pega un enlace de Stradivarius o Amazon. La primera lectura completará nombre, precio, disponibilidad e imágenes.</p>
   </div>
-  <form method="post" class="inline-form">
+  <form method="post" class="inline-form add-form">
     <input type="hidden" name="action" value="add_product">
-    <input name="url" placeholder="https://www.stradivarius.com/... o https://www.amazon.es/..." required>
+    <input name="url" placeholder="Pega aquí el enlace del producto" required>
     <button type="submit">Añadir</button>
   </form>
 </section>
 
 <section class="stats-row">
-  <article><strong>{{ products|length }}</strong><span>productos</span></article>
-  <article><strong>{{ products|selectattr('in_stock')|list|length }}</strong><span>disponibles</span></article>
-  <article><strong>{{ products|selectattr('scrape_status', 'equalto', 'blocked')|list|length }}</strong><span>bloqueados</span></article>
+  <article class="stat-card"><span>En seguimiento</span><strong>{{ products|length }}</strong><small>Productos propios</small></article>
+  <article class="stat-card"><span>Con stock</span><strong>{{ products|selectattr('in_stock')|list|length }}</strong><small>Disponibles ahora</small></article>
+  <article class="stat-card"><span>Bloqueados</span><strong>{{ products|selectattr('scrape_status', 'equalto', 'blocked')|list|length }}</strong><small>Lectura limitada</small></article>
 </section>
 
 {% if products %}
-<section class="product-tools">
-  <input data-filter-search placeholder="Buscar por nombre, tienda o código">
-  <div class="segmented" data-filter-store>
-    <button type="button" class="active" data-store="all">Todo</button>
-    <button type="button" data-store="Amazon">Amazon</button>
-    <button type="button" data-store="Stradivarius">Stradivarius</button>
+<section class="product-tools surface">
+  <div class="search-box">
+    <span>Buscar</span>
+    <input data-filter-search placeholder="Nombre, tienda, referencia o código">
   </div>
+  <div class="filter-groups">
+    <div class="segmented" data-filter-store aria-label="Filtrar por tienda">
+      <button type="button" class="active" data-store="all">Todo</button>
+      <button type="button" data-store="amazon">Amazon</button>
+      <button type="button" data-store="stradivarius">Stradivarius</button>
+    </div>
+    <div class="segmented" data-filter-stock aria-label="Filtrar por estado">
+      <button type="button" class="active" data-stock="all">Todos</button>
+      <button type="button" data-stock="available">Con stock</button>
+      <button type="button" data-stock="soldout">Agotados</button>
+    </div>
+  </div>
+  <p class="filter-count" data-filter-count></p>
 </section>
 {% endif %}
 
@@ -45,24 +58,26 @@
   {% for product in products %}
     {% set photos = product.image_urls_json|image_urls %}
     {% set store = product.url|store_name %}
+    {% set size_map = product.sizes_json|sizes_map %}
     <article
       class="product-card {{ 'has-photos' if photos else '' }} status-{{ product.scrape_status or 'pending' }}"
       data-product-card
-      data-store="{{ store }}"
-      data-search="{{ product.name }} {{ store }} {{ product.reference }} {{ product.url|product_code }}"
+      data-store="{{ store|lower }}"
+      data-stock="{{ 'available' if product.in_stock else 'soldout' }}"
+      data-search="{{ product.name }} {{ store }} {{ product.reference }} {{ product.url|product_code }} {{ product.color }}"
     >
-      {% if photos %}
-        <div class="product-photos">
-          {% for photo in photos[:2] %}
-            <img src="{{ photo }}" alt="{{ product.name }}" loading="lazy">
-          {% endfor %}
-        </div>
-      {% endif %}
+      <a class="product-media" href="{{ url_for('product_detail', product_id=product.id) }}" aria-label="Abrir histórico de {{ product.name }}">
+        {% if photos %}
+          <img src="{{ photos[0] }}" alt="{{ product.name }}" loading="lazy">
+        {% else %}
+          <span>{{ store[:2]|upper }}</span>
+        {% endif %}
+      </a>
 
       <div class="product-main">
         <div class="product-title-row">
           <div>
-            <p class="eyebrow">{{ store }}{% if product.color %} - {{ product.color }}{% endif %}</p>
+            <p class="eyebrow">{{ store }}{% if product.color %} · {{ product.color }}{% endif %}</p>
             <h2>{{ product.name or "Producto vigilado" }}</h2>
           </div>
           <span class="badge {{ product|availability_class }}">{{ product|availability_label }}</span>
@@ -79,7 +94,6 @@
           <div><span>Última revisión</span><strong>{{ product.last_checked_at|date_es }}</strong></div>
         </div>
 
-        {% set size_map = product.sizes_json|sizes_map %}
         {% if size_map %}
           <div class="sizes-wrap">
             <span>Tallas</span>
@@ -101,21 +115,23 @@
         <form method="post" class="alert-controls">
           <input type="hidden" name="action" value="update_notifications">
           <input type="hidden" name="product_id" value="{{ product.id }}">
-          <label class="check">
+          <label class="switch">
             <input name="notify_price_drop" type="checkbox" {% if product.notify_price_drop %}checked{% endif %}>
+            <span></span>
             Bajada de precio
           </label>
-          <label class="check">
+          <label class="switch">
             <input name="notify_restock" type="checkbox" {% if product.notify_restock %}checked{% endif %}>
+            <span></span>
             Reposición
           </label>
-          <button class="secondary compact" type="submit">Guardar alertas</button>
+          <button class="secondary compact" type="submit">Guardar</button>
         </form>
       </div>
 
       <div class="product-actions">
         <a class="button secondary" href="{{ url_for('product_detail', product_id=product.id) }}">Histórico</a>
-        <a class="button secondary" href="{{ product.url }}" target="_blank" rel="noreferrer">Abrir tienda</a>
+        <a class="button ghost" href="{{ product.url }}" target="_blank" rel="noreferrer">Tienda</a>
         <form method="post">
           <input type="hidden" name="action" value="remove_product">
           <input type="hidden" name="product_id" value="{{ product.id }}">
@@ -124,10 +140,17 @@
       </div>
     </article>
   {% else %}
-    <section class="empty-state">
-      <h2>Aún no tienes productos</h2>
-      <p>Añade tu primer enlace para empezar a vigilar precio y stock.</p>
+    <section class="empty-state surface">
+      <p class="eyebrow">Sin productos</p>
+      <h2>Aún no tienes productos vigilados</h2>
+      <p>Añade tu primer enlace para empezar a controlar precio y stock automáticamente.</p>
     </section>
   {% endfor %}
+</section>
+
+<section class="empty-state surface filter-empty" data-filter-empty hidden>
+  <p class="eyebrow">Sin resultados</p>
+  <h2>No hay productos con esos filtros</h2>
+  <p>Prueba otra tienda, cambia el estado o borra la búsqueda.</p>
 </section>
 {% endblock %}

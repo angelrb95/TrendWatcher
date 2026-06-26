@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="page-head">
+<section class="page-head admin-head">
   <div>
     <p class="eyebrow">Administración</p>
-    <h1>Control del monitor</h1>
-    <p>Productos, usuarios, alertas, correo y frecuencia de revisión.</p>
+    <h1>Centro de control</h1>
+    <p>Gestiona catálogo, usuarios, alertas y frecuencia de revisión desde un único panel.</p>
   </div>
   <form method="post">
     <input type="hidden" name="action" value="run_now">
@@ -12,19 +12,27 @@
   </form>
 </section>
 
+<section class="stats-row">
+  <article class="stat-card"><span>Catálogo</span><strong>{{ products|length }}</strong><small>Productos globales</small></article>
+  <article class="stat-card"><span>Usuarios</span><strong>{{ users|length }}</strong><small>Cuentas registradas</small></article>
+  <article class="stat-card"><span>Intervalo</span><strong>{{ config.get('check_interval_minutes', '5') }} min</strong><small>Escaneo automático</small></article>
+</section>
+
 <section class="admin-grid">
-  <article class="panel">
+  <article class="panel action-panel">
+    <p class="eyebrow">Catálogo</p>
     <h2>Añadir producto</h2>
     <form method="post" class="form-stack">
       <input type="hidden" name="action" value="add_product">
       <label>URL de producto
-        <input name="url" placeholder="https://www.stradivarius.com/... o https://www.amazon.es/..." required>
+        <input name="url" placeholder="Stradivarius o Amazon" required>
       </label>
       <button type="submit">Guardar producto</button>
     </form>
   </article>
 
-  <article class="panel">
+  <article class="panel action-panel">
+    <p class="eyebrow">Accesos</p>
     <h2>Crear usuario</h2>
     <form method="post" action="{{ url_for('create_user') }}" class="form-stack">
       <label>Usuario
@@ -42,7 +50,7 @@
           <option value="admin">Admin</option>
         </select>
       </label>
-      <button type="submit">Crear</button>
+      <button type="submit">Crear usuario</button>
     </form>
   </article>
 </section>
@@ -51,7 +59,7 @@
   <div class="panel-head">
     <div>
       <p class="eyebrow">Alertas</p>
-      <h2>Configuración</h2>
+      <h2>Configuración de notificaciones</h2>
     </div>
   </div>
   <form method="post" class="config-grid">
@@ -65,8 +73,9 @@
     <label>Telegram chat ID
       <input name="telegram_chat_id" value="{{ config.get('telegram_chat_id', '') }}">
     </label>
-    <label class="check">
+    <label class="switch field-switch">
       <input name="email_enabled" type="checkbox" {% if config.get('email_enabled') == 'true' %}checked{% endif %}>
+      <span></span>
       Activar email
     </label>
     <label>SMTP host
@@ -97,18 +106,23 @@
   </form>
 </section>
 
-<section class="panel">
-  <h2>Catálogo global</h2>
+<section class="panel table-panel">
+  <div class="panel-head">
+    <div>
+      <p class="eyebrow">Productos</p>
+      <h2>Catálogo global</h2>
+    </div>
+  </div>
   <table>
     <thead><tr><th>Producto</th><th>Tienda</th><th>Código</th><th>Color</th><th>Lectura</th><th>Precio</th><th>Stock</th><th>Última revisión</th><th>Usuarios</th><th>URL</th><th></th></tr></thead>
     <tbody>
       {% for product in products %}
         <tr>
-          <td>{{ product.name }}</td>
+          <td><strong>{{ product.name }}</strong></td>
           <td>{{ product.url|store_name }}</td>
           <td>{{ product.url|product_code }}</td>
           <td>{{ product.color or "-" }}</td>
-          <td>{{ product.scrape_status|scrape_status }}</td>
+          <td><span class="status-pill">{{ product.scrape_status|scrape_status }}</span></td>
           <td>{{ product.current_price|money }}</td>
           <td>{{ product|availability_label }}</td>
           <td>{{ product.last_checked_at|date_es }}</td>
@@ -118,7 +132,7 @@
             <form method="post">
               <input type="hidden" name="action" value="delete_product">
               <input type="hidden" name="product_id" value="{{ product.id }}">
-              <button class="danger" type="submit">Eliminar</button>
+              <button class="danger compact" type="submit">Eliminar</button>
             </form>
           </td>
         </tr>
@@ -129,14 +143,19 @@
   </table>
 </section>
 
-<section class="panel">
-  <h2>Usuarios registrados</h2>
+<section class="panel table-panel">
+  <div class="panel-head">
+    <div>
+      <p class="eyebrow">Usuarios</p>
+      <h2>Cuentas registradas</h2>
+    </div>
+  </div>
   <table>
     <thead><tr><th>Usuario</th><th>Rol</th><th>Email</th><th>Alertas</th><th>Productos</th><th>Alta</th></tr></thead>
     <tbody>
       {% for user in users %}
         <tr>
-          <td>{{ user.username }}</td>
+          <td><strong>{{ user.username }}</strong></td>
           <td>{{ user.role }}</td>
           <td>{{ user.email or "Sin email" }}</td>
           <td>{{ "Sí" if user.notifications_enabled else "No" }}</td>
@@ -151,12 +170,17 @@
 </section>
 
 <section class="panel">
-  <h2>Eventos</h2>
+  <div class="panel-head">
+    <div>
+      <p class="eyebrow">Actividad</p>
+      <h2>Últimos eventos</h2>
+    </div>
+  </div>
   <ul class="events">
     {% for event in events %}
-      <li><span class="{{ event.level }}">{{ event.level }}</span>{{ event.message }} <small>{{ event.created_at|date_es }}</small></li>
+      <li><span class="{{ event.level }}">{{ event.level }}</span><p>{{ event.message }}</p><small>{{ event.created_at|date_es }}</small></li>
     {% else %}
-      <li>Sin eventos.</li>
+      <li><p>Sin eventos.</p></li>
     {% endfor %}
   </ul>
 </section>
